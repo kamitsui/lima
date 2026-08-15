@@ -34,6 +34,27 @@ macOS ホスト上に [Lima](https://lima-vm.io/) で開発用 VM を構築・�
 - Homebrew
 - Lima(`brew install lima`)
 
+## 初期設定(初回のみ)
+
+`~/.ssh/config` の先頭に以下を追加する(パスは clone 先に合わせる):
+
+```
+Include ~/Documents/42staff/lima/ssh/config
+
+# 鍵の使用時に自動で ssh-agent へ登録(ゲストへのエージェント転送で必要)
+Host *
+	AddKeysToAgent yes
+```
+
+接続設定の実体は本リポジトリの [`ssh/config`](ssh/config) にあり、ポート等は
+Lima 生成の `~/.lima/*/ssh.config` に自動追従する。接続は wezterm 等から:
+
+```sh
+ssh lima-debian-web   # ForwardAgent / DynamicForward 1080 / COLORTERM 伝搬つき
+```
+
+`make ssh`(limactl shell)は管理用の簡易接続。開発時は上記の ssh 接続を常用する。
+
 ## 使い方
 
 ```sh

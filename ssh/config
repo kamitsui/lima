@@ -1,0 +1,23 @@
+# lima リポジトリの VM への接続設定
+# ホストの ~/.ssh/config の先頭に次の 1 行を追加して使う(初回のみ):
+#   Include ~/Documents/42staff/lima/ssh/config
+#
+# 接続情報(ポート・ユーザー・鍵)は Lima が生成する ~/.lima/<env>/ssh.config を
+# glob で Include して常に追従する。ここには追加オプションだけを書く。
+
+# SOCKS プロキシ(内部ドメイン検証用)は debian-web のみ
+Host lima-debian-web
+  DynamicForward 1080
+
+# すべての Lima VM 共通
+Host lima-*
+  # ホストの鍵をエージェント転送で使う(鍵はゲストに置かない)
+  ForwardAgent yes
+  # truecolor 伝搬(ゲスト側 AcceptEnv は provisioning で設定済み)
+  SendEnv COLORTERM
+  # Lima 内部の ControlMaster を再利用しない(提供グループ反映やポート転送の独立性のため)
+  ControlMaster no
+  ControlPath none
+
+# Lima が生成する接続情報(存在するインスタンス分だけ自動で読み込まれる)
+Include ~/.lima/*/ssh.config

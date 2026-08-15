@@ -153,6 +153,16 @@ provision:
         brew install "${missing[@]}"
       fi
 
+  # ゲストからの git 操作の下準備(github.com のホストキーを事前登録)
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+      if ! grep -q github.com "$HOME/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
+      fi
+
   # ログインシェルを zsh へ(+ 初回設定ウィザード抑止のプレースホルダ)
   - mode: user
     script: |
