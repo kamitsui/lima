@@ -4,7 +4,11 @@
 ENV ?= debian-web
 LIMA_YAML := envs/$(ENV)/lima.yaml
 
-.PHONY: up down ssh status delete
+.DEFAULT_GOAL := help
+.PHONY: help up down ssh status delete recreate
+
+help: ## ターゲット一覧を表示
+	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
 
 up: ## VM を作成(初回)または起動
 	@if limactl list --quiet 2>/dev/null | grep -qx '$(ENV)'; then \
@@ -26,3 +30,8 @@ delete: ## VM を破棄(確認あり)
 	@printf 'VM "%s" を削除します。よろしいですか? [y/N] ' '$(ENV)'; \
 	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
 	limactl delete --force $(ENV)
+
+recreate: ## VM を破棄して作り直す(確認あり)
+	@printf 'VM "%s" を削除して作り直します。よろしいですか? [y/N] ' '$(ENV)'; \
+	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
+	limactl delete --force $(ENV) && $(MAKE) up ENV=$(ENV)

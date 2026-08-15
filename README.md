@@ -37,11 +37,13 @@ macOS ホスト上に [Lima](https://lima-vm.io/) で開発用 VM を構築・�
 ## 使い方
 
 ```sh
+make help     # ターゲット一覧
 make up       # VM を作成(初回)または起動(既定 ENV=debian-web)
 make ssh      # VM に接続
 make down     # 停止
 make status   # 状態表示
 make delete   # 破棄(確認あり)
+make recreate # 破棄して作り直し(確認あり)
 ```
 
 別環境を追加した場合は `make up ENV=<環境名>` のように指定する。
