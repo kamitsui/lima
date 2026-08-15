@@ -1,0 +1,33 @@
+# Web 開発用 Debian 13 環境
+# 設計判断の経緯は Issues #2, #3, #4 を参照
+
+vmType: "vz"
+
+# amd64 コンテナ/バイナリ実行用(デプロイ先が x86_64 の場合や amd64 のみ配布のイメージ対策)
+rosetta:
+  enabled: true
+  binfmt: true
+
+cpus: 4
+memory: "8GiB"
+disk: "100GiB"
+
+# latest を参照するため、再構築時は常にその時点の最新 trixie イメージになる(cattle 運用)。
+# ビルドを固定したい場合はダイジェスト付きの日付別 URL に置き換える。
+images:
+  - location: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-arm64.qcow2"
+    arch: "aarch64"
+  - location: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
+    arch: "x86_64"
+
+# コードはゲスト内で完結させる方針のため、ホストのディレクトリはマウントしない
+mounts: []
+
+ssh:
+  # ホストの鍵はエージェント転送で使う(秘密鍵をゲストにコピーしない)
+  forwardAgent: true
+
+# Docker は provisioning で docker-ce を導入するため、Lima 内蔵の containerd は無効化
+containerd:
+  system: false
+  user: false
