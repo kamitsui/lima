@@ -55,6 +55,38 @@ ssh lima-debian-web   # ForwardAgent / DynamicForward 1080 / COLORTERM 伝搬つ
 
 `make ssh`(limactl shell)は管理用の簡易接続。開発時は上記の ssh 接続を常用する。
 
+## ブラウザでの動作確認(2 経路)
+
+**日常は localhost、ドメインで検証したいときは SOCKS** と使い分ける。
+
+### 1. localhost(自動ポートフォワード)
+
+ゲストで listen したポートは自動でホストの localhost に転送される。
+ゲストで `:3000` のサービス → ホストのブラウザで `http://localhost:3000`。
+macOS は特権ポートも bind できるため `:80` もそのまま転送される。
+
+### 2. SOCKS プロキシ(内部ドメインでの検証)
+
+`ssh lima-debian-web` の接続中、ホストの `localhost:1080` が SOCKS v5 プロキシになる。
+名前解決はゲスト側で行われるため、**ゲストの /etc/hosts に書いたドメインがそのまま使える**:
+
+```sh
+# ゲスト側: ドメインを定義
+echo '127.0.0.1 app.test' | sudo tee -a /etc/hosts
+# ホスト側: curl での確認(--socks5-hostname がリモート DNS 相当)
+curl --socks5-hostname 127.0.0.1:1080 http://app.test/
+```
+
+Firefox は専用プロファイルを作って使う(初回のみ):
+
+1. `about:profiles` で新規プロファイル(例: `lima-dev`)を作成して起動
+2. 設定 → ネットワーク設定 → 手動プロキシー設定
+   - SOCKS ホスト: `localhost`、ポート: `1080`、**SOCKS v5** を選択
+   - **「SOCKS v5 を使用するときは DNS もプロキシーを使用する」に必ずチェック**(これが無いとゲストのドメインを解決できない)
+3. localhost 宛は既定でプロキシを経由しないため、OAuth コールバック等とは干渉しない
+
+ワイルドカード(`*.test`)が必要になったらゲストに dnsmasq を追加する(未導入)。
+
 ## 使い方
 
 ```sh
