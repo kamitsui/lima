@@ -98,3 +98,65 @@ provision:
       if ! getent group docker | grep -qw "$(id -un)"; then
         sudo usermod -aG docker "$(id -un)"
       fi
+
+  # wezterm terminfo と Homebrew の PATH 下地
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      # wezterm の terminfo(TERM=wezterm をゲストで解決できるようにする)
+      if ! infocmp wezterm >/dev/null 2>&1; then
+        t=$(mktemp)
+        curl -fsSL -o "$t" https://raw.githubusercontent.com/wezterm/wezterm/main/termwiz/data/wezterm.terminfo
+        tic -x -o /usr/share/terminfo "$t"
+        rm -f "$t"
+      fi
+      # bash ログインシェル用
+      if [ ! -f /etc/profile.d/homebrew.sh ]; then
+        echo '[ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' \
+          > /etc/profile.d/homebrew.sh
+      fi
+      # zsh 用は zshenv へ(非対話の `ssh guest cmd` でも brew が使えるように)
+      if ! grep -q linuxbrew /etc/zsh/zshenv 2>/dev/null; then
+        echo '[ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' \
+          >> /etc/zsh/zshenv
+      fi
+
+  # Homebrew 本体 + 基本ツール(ARM64 Linux は brew 5.0 で Tier 1 サポート)
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      if [ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+        NONINTERACTIVE=1 /bin/bash -c \
+          "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      fi
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      export HOMEBREW_NO_AUTO_UPDATE=1
+      # formula 名 → 実行ファイル名。存在チェックで冪等化し、毎起動を高速に保つ
+      declare -A tools=(
+        [vim]=vim [neovim]=nvim [yazi]=yazi [fzf]=fzf [starship]=starship
+        [stow]=stow [bat]=bat [ripgrep]=rg [fd]=fd [ghq]=ghq [jq]=jq
+      )
+      missing=()
+      for f in "${!tools[@]}"; do
+        command -v "${tools[$f]}" >/dev/null || missing+=("$f")
+      done
+      if [ ${#missing[@]} -gt 0 ]; then
+        brew install "${missing[@]}"
+      fi
+
+  # ログインシェルを zsh へ(+ 初回設定ウィザード抑止のプレースホルダ)
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      # dotfiles 導入(#9/#10)までのプレースホルダ。ZDOTDIR 移行後は読まれなくなるので残っても無害
+      if [ ! -e "$HOME/.zshrc" ] && [ ! -e "$HOME/.zshenv" ]; then
+        printf '# placeholder: dotfiles 導入(Issue #9/#10)までの仮ファイル(zsh-newuser-install 抑止)\n' \
+          > "$HOME/.zshrc"
+      fi
+      me=$(id -un)
+      if [ "$(getent passwd "$me" | cut -d: -f7)" != "/usr/bin/zsh" ]; then
+        sudo chsh -s /usr/bin/zsh "$me"
+      fi
