@@ -140,6 +140,11 @@ provision:
         echo '[ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' \
           >> /etc/zsh/zshenv
       fi
+      # ~/.local/bin(Claude Code 等のユーザー領域インストール先)も PATH へ
+      # 注意: パターンは固定文字列で厳密に(緩いと Debian 標準の /usr/local/bin に誤マッチ)
+      if ! grep -qF '$HOME/.local/bin' /etc/zsh/zshenv 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> /etc/zsh/zshenv
+      fi
 
   # Homebrew 本体 + 基本ツール(ARM64 Linux は brew 5.0 で Tier 1 サポート)
   - mode: user
@@ -173,6 +178,15 @@ provision:
       mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
       if ! grep -q github.com "$HOME/.ssh/known_hosts" 2>/dev/null; then
         ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
+      fi
+
+  # Claude Code(公式インストーラ、~/.local/bin へ)
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      if [ ! -x "$HOME/.local/bin/claude" ] && ! command -v claude >/dev/null 2>&1; then
+        curl -fsSL https://claude.ai/install.sh | bash
       fi
 
   # ログインシェルを zsh へ(+ 初回設定ウィザード抑止のプレースホルダ)
