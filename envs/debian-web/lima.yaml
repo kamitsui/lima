@@ -25,6 +25,13 @@ images:
   - location: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
     arch: "x86_64"
 
+# ゲストユーザーは全環境共通の汎用名にする(ホスト個人名の複製を避ける。Issue #14)
+# shell は cloud-init 時点で zsh 未導入のため既定のまま(provisioning の chsh が担当)
+user:
+  name: dev
+  comment: dev
+  home: /home/dev
+
 # コードはゲスト内で完結させる方針のため、ホストのディレクトリはマウントしない
 mounts: []
 
