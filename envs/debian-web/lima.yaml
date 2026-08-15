@@ -68,6 +68,18 @@ provision:
         timedatectl set-timezone Asia/Tokyo
       fi
 
+  # 対話ログインの遅延対策: Lima 2.x の vsock SSH では接続元 IP が無く
+  # sshd が接続元を "UNKNOWN" と記録する。この文字列が対話ログイン時に
+  # ホスト名として DNS 解決に回り、タイムアウト(数秒)まで待たされるため、
+  # /etc/hosts で即時解決させる(調査記録は Issue #6 のコメント参照)
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      if ! grep -q '^127.0.0.1 UNKNOWN' /etc/hosts; then
+        echo '127.0.0.1 UNKNOWN' >> /etc/hosts
+      fi
+
   # sshd: ホストから COLORTERM を受け取る(truecolor 伝搬。ホスト側 SendEnv は #6)
   - mode: system
     script: |
