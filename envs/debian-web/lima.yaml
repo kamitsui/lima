@@ -4,9 +4,14 @@
 vmType: "vz"
 
 # amd64 コンテナ/バイナリ実行用(デプロイ先が x86_64 の場合や amd64 のみ配布のイメージ対策)
-rosetta:
-  enabled: true
-  binfmt: true
+# 【既知の制約】ゲストカーネル 6.11 以降では Rosetta が
+# "Failed to find vdso DT_HASH" で失敗する(Apple 側の未修正バグ、FB16455916)。
+# Debian 13 はカーネル 6.12 のため現状 amd64 実行は不可。代替手段は Issue #13 を参照。
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true
 
 cpus: 4
 memory: "8GiB"
@@ -31,3 +36,65 @@ ssh:
 containerd:
   system: false
   user: false
+
+# ── provisioning(システム層)─────────────────────────────────
+# 毎起動実行されるため、すべて冪等に書く(導入済みなら何もしない)
+provision:
+  # apt 基礎パッケージ・locale・timezone
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      # build-essential, procps, curl, file, git は Homebrew on Linux の前提パッケージ
+      pkgs=(build-essential procps curl file git zsh locales ca-certificates gnupg)
+      if ! dpkg -s "${pkgs[@]}" >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y "${pkgs[@]}"
+      fi
+      if ! grep -q '^en_US.UTF-8' /etc/locale.gen || ! grep -q '^ja_JP.UTF-8' /etc/locale.gen; then
+        sed -i -e 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' \
+               -e 's/^# *ja_JP.UTF-8 UTF-8/ja_JP.UTF-8 UTF-8/' /etc/locale.gen
+        locale-gen
+      fi
+      if [ "$(timedatectl show -p Timezone --value)" != "Asia/Tokyo" ]; then
+        timedatectl set-timezone Asia/Tokyo
+      fi
+
+  # sshd: ホストから COLORTERM を受け取る(truecolor 伝搬。ホスト側 SendEnv は #6)
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      conf=/etc/ssh/sshd_config.d/60-colorterm.conf
+      if [ ! -f "$conf" ]; then
+        printf 'AcceptEnv COLORTERM\n' > "$conf"
+        systemctl try-reload-or-restart ssh || true
+      fi
+
+  # Docker CE(公式 apt リポジトリ)+ docker グループ(sudo なし docker)
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      if ! command -v docker >/dev/null 2>&1; then
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+        codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $codename stable" \
+          > /etc/apt/sources.list.d/docker.list
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      fi
+
+  # sudo なし docker(docker グループへ追加)。LIMA_CIDATA 変数は非推奨のため
+  # user モードで実行し、自分のユーザー名を id で解決する
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      if ! getent group docker | grep -qw "$(id -un)"; then
+        sudo usermod -aG docker "$(id -un)"
+      fi
