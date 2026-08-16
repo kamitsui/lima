@@ -17,6 +17,14 @@ cpus: 4
 memory: "8GiB"
 disk: "100GiB"
 
+# 永続データディスク(Issue #15)。VM を削除しても残り、再作成時に再アタッチされる。
+# 事前に `make disk`(limactl disk create web-data --format raw)で作成しておくこと。
+# Lima が初回のみフォーマット(ext4)し /mnt/lima-web-data にマウントする。
+# 注意: ①vz は raw 必須(qcow2 は起動時変換でデータ消失: lima#1964)
+#       ②名前は 11 文字以内(ext4 ラベル 16 文字制限にフォーマット済み判定が依存)
+additionalDisks:
+  - name: web-data
+
 # latest を参照するため、再構築時は常にその時点の最新 trixie イメージになる(cattle 運用)。
 # ビルドを固定したい場合はダイジェスト付きの日付別 URL に置き換える。
 images:
@@ -169,6 +177,41 @@ provision:
       if [ ${#missing[@]} -gt 0 ]; then
         brew install "${missing[@]}"
       fi
+
+  # 状態データを永続ディスクへ(Issue #15)。VM 再構築をまたいで維持したいパスを
+  # データディスク上に移し、$HOME からシンボリックリンクする。
+  # 対象を増やすときは dirs / files のリストに追記する
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      MNT=/mnt/lima-web-data
+      DATA="$MNT/dev"
+      if [ ! -d "$MNT" ]; then
+        echo "error: data disk not mounted at $MNT" >&2
+        exit 1
+      fi
+      sudo install -d -o "$(id -u)" -g "$(id -g)" "$DATA"
+      dirs=(".claude")
+      files=(".claude.json")
+      for t in "${dirs[@]}"; do
+        src="$HOME/$t"; dst="$DATA/$t"
+        # リンク先が想定と違う(旧ディスク名など)場合は張り替える
+        if [ -L "$src" ] && [ "$(readlink "$src")" != "$dst" ]; then rm "$src"; fi
+        if [ ! -L "$src" ] && [ -d "$src" ] && [ ! -e "$dst" ]; then
+          mv "$src" "$dst"   # 初回: 既存データをディスクへ移行
+        fi
+        mkdir -p "$dst"      # リンク済みでも受け皿を常に保証(ディスク交換直後対策)
+        [ -L "$src" ] || ln -sn "$dst" "$src"
+      done
+      for t in "${files[@]}"; do
+        src="$HOME/$t"; dst="$DATA/$t"
+        if [ -L "$src" ] && [ "$(readlink "$src")" != "$dst" ]; then rm "$src"; fi
+        if [ ! -L "$src" ] && [ -f "$src" ] && [ ! -e "$dst" ]; then
+          mv "$src" "$dst"
+        fi
+        [ -L "$src" ] || ln -sn "$dst" "$src"
+      done
 
   # ゲストからの git 操作の下準備(github.com のホストキーを事前登録)
   - mode: user

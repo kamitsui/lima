@@ -55,6 +55,28 @@ ssh lima-debian-web   # ForwardAgent / DynamicForward 1080 / COLORTERM 伝搬つ
 
 `make ssh`(limactl shell)は管理用の簡易接続。開発時は上記の ssh 接続を常用する。
 
+## データの永続化(何が残り、何が消えるか)
+
+VM は使い捨て(`make delete` / `make recreate`)が前提。何が残るかは次の通り:
+
+**残るもの**
+- 永続データディスク `web-data` 上のデータ: `~/.claude` と `~/.claude.json`
+  (Claude Code のログイン・履歴・メモリ)。対象パスは lima.yaml の
+  provisioning 内 dirs / files リストで管理し、必要に応じて追記する
+- push 済みの git リポジトリ(GitHub 側に存在するもの)
+- ホスト側の設定(ssh 設定、Lima のイメージキャッシュ、このリポジトリ)
+
+**消えるもの**
+- 上記以外のゲスト内すべて: ホームの作業ファイル、Docker イメージ/volume、
+  /etc/hosts への追記、provisioning に書かず手動インストールしたもの
+- 未 push のコミット・未コミットの変更(破棄前の検出は make check-dirty で整備予定)
+
+**データディスクのハマりどころ**(実際に踏んだもの)
+- **raw 形式で作ること**。qcow2 だと vz の起動時変換でデータが消える(`make disk` は対応済み)
+- **ディスク名は 11 文字以内**。Lima のフォーマット済み判定は ext4 ラベル
+  `lima-<名前>`(16 文字で切り詰め)に依存するため、超えると毎起動初期化される
+- ディスクごと消す完全リセットは `make delete-data`(確認プロンプト付き)
+
 ## ブラウザでの動作確認(2 経路)
 
 **日常は localhost、ドメインで検証したいときは SOCKS** と使い分ける。

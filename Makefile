@@ -3,14 +3,23 @@
 
 ENV ?= debian-web
 LIMA_YAML := envs/$(ENV)/lima.yaml
+# ディスク名は 11 文字以内にすること(Lima は ext4 ラベル "lima-<名前>" で
+# フォーマット済み判定をするが、ラベルは 16 文字で切り詰められるため、
+# 超えると毎起動re-フォーマットされデータが消える)
+DATA_DISK ?= web-data
 
 .DEFAULT_GOAL := help
-.PHONY: help up down ssh status delete recreate
+.PHONY: help up down ssh status delete recreate disk delete-data
 
 help: ## ターゲット一覧を表示
-	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## VM を作成(初回)または起動
+disk: ## 永続データディスクを作成(存在しなければ)
+	@# 注意: vz は raw のみ対応。qcow2 で作ると起動時変換でデータが消える(lima#1964)
+	@limactl disk list 2>/dev/null | awk 'NR>1{print $$1}' | grep -qx '$(DATA_DISK)' || \
+		limactl disk create $(DATA_DISK) --size 20GiB --format raw
+
+up: disk ## VM を作成(初回)または起動
 	@if limactl list --quiet 2>/dev/null | grep -qx '$(ENV)'; then \
 		limactl start $(ENV); \
 	else \
@@ -35,3 +44,8 @@ recreate: ## VM を破棄して作り直す(確認あり)
 	@printf 'VM "%s" を削除して作り直します。よろしいですか? [y/N] ' '$(ENV)'; \
 	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
 	limactl delete --force $(ENV) && $(MAKE) up ENV=$(ENV)
+
+delete-data: ## 永続データディスクを完全削除(状態データが消える。確認あり)
+	@printf 'データディスク "%s" を完全削除します。Claude Code の履歴等が失われます。よろしいですか? [y/N] ' '$(DATA_DISK)'; \
+	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
+	limactl disk delete $(DATA_DISK)
