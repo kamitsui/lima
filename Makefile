@@ -9,7 +9,7 @@ LIMA_YAML := envs/$(ENV)/lima.yaml
 DATA_DISK ?= web-data
 
 .DEFAULT_GOAL := help
-.PHONY: help up down ssh status delete recreate disk delete-data setup
+.PHONY: help up down ssh status delete recreate disk delete-data setup check-dirty _dirty_guard
 
 help: ## ターゲット一覧を表示
 	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -38,12 +38,26 @@ ssh: ## VM に接続
 status: ## VM の状態を表示
 	limactl list
 
-delete: ## VM を破棄(確認あり)
+check-dirty: ## ゲスト内リポジトリの未 push・未コミットを検査
+	@ssh lima-$(ENV) 'bash -s' < scripts/check-dirty.sh
+
+# 破棄系ターゲットの前段検査。dirty なら中断(FORCE=1 でスキップ可)
+_dirty_guard:
+	@if [ "$(FORCE)" = "1" ]; then \
+		echo 'FORCE=1: dirty 検査をスキップします'; \
+	elif limactl list $(ENV) --format '{{.Status}}' 2>/dev/null | grep -qx Running; then \
+		$(MAKE) --no-print-directory check-dirty ENV=$(ENV) || \
+			{ echo ''; echo '破棄を中止しました(FORCE=1 で強制続行できます)'; exit 1; }; \
+	else \
+		echo '警告: VM が起動していないため dirty 検査をスキップします(検査するには make up)'; \
+	fi
+
+delete: _dirty_guard ## VM を破棄(dirty 検査 + 確認あり。データディスクは残る)
 	@printf 'VM "%s" を削除します。よろしいですか? [y/N] ' '$(ENV)'; \
 	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
 	limactl delete --force $(ENV)
 
-recreate: ## VM を破棄して作り直す(確認あり)
+recreate: _dirty_guard ## VM を破棄して作り直す(dirty 検査 + 確認あり)
 	@printf 'VM "%s" を削除して作り直します。よろしいですか? [y/N] ' '$(ENV)'; \
 	read ans; [ "$$ans" = "y" ] || { echo '中止しました'; exit 1; }; \
 	limactl delete --force $(ENV) && $(MAKE) up ENV=$(ENV)

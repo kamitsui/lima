@@ -69,7 +69,8 @@ VM は使い捨て(`make delete` / `make recreate`)が前提。何が残るか�
 **消えるもの**
 - 上記以外のゲスト内すべて: ホームの作業ファイル、Docker イメージ/volume、
   /etc/hosts への追記、provisioning に書かず手動インストールしたもの
-- 未 push のコミット・未コミットの変更(破棄前の検出は make check-dirty で整備予定)
+- 未 push のコミット・未コミットの変更(`make delete` / `make recreate` は実行前に
+  `make check-dirty` で自動検査し、退避されていない作業があれば中断する。`FORCE=1` で回避可)
 
 **データディスクのハマりどころ**(実際に踏んだもの)
 - **raw 形式で作ること**。qcow2 だと vz の起動時変換でデータが消える(`make disk` は対応済み)
@@ -123,10 +124,11 @@ make help     # ターゲット一覧
 make up       # VM を作成(初回)または起動(既定 ENV=debian-web)
 make setup    # ユーザーレベル仕上げ(dotfiles 導入・vim プラグイン等。冪等)
 make ssh      # VM に接続(管理用。開発時は ssh lima-debian-web)
-make down     # 停止
-make status   # 状態表示
-make delete   # 破棄(確認あり。永続データディスクは残る)
-make recreate # 破棄して作り直し(確認あり)
+make down       # 停止
+make status     # 状態表示
+make check-dirty # ゲスト内リポジトリの未 push・未コミット検査
+make delete     # 破棄(dirty 検査 + 確認あり。永続データディスクは残る)
+make recreate   # 破棄して作り直し(dirty 検査 + 確認あり)
 ```
 
 ゼロからの構築は `make up && make setup` の 2 コマンドで完了する。
