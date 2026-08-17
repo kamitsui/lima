@@ -121,11 +121,24 @@ Firefox は専用プロファイルを作って使う(初回のみ):
 ```sh
 make help     # ターゲット一覧
 make up       # VM を作成(初回)または起動(既定 ENV=debian-web)
-make ssh      # VM に接続
+make setup    # ユーザーレベル仕上げ(dotfiles 導入・vim プラグイン等。冪等)
+make ssh      # VM に接続(管理用。開発時は ssh lima-debian-web)
 make down     # 停止
 make status   # 状態表示
-make delete   # 破棄(確認あり)
+make delete   # 破棄(確認あり。永続データディスクは残る)
 make recreate # 破棄して作り直し(確認あり)
+```
+
+ゼロからの構築は `make up && make setup` の 2 コマンドで完了する。
+
+## 開発リポジトリの置き方(ゲスト内)
+
+リポジトリは ghq で `~/ghq/github.com/<owner>/<repo>` の URL 準拠階層に統一する:
+
+```sh
+ghq get -p <owner>/<repo>   # ssh で clone(-p)。配置先は ghq が決める
+ghq list                    # 一覧
+# Ctrl-G                    # fzf でリポジトリを選んで cd(zsh ウィジェット)
 ```
 
 別環境を追加した場合は `make up ENV=<環境名>` のように指定する。

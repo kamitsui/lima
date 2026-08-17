@@ -9,7 +9,7 @@ LIMA_YAML := envs/$(ENV)/lima.yaml
 DATA_DISK ?= web-data
 
 .DEFAULT_GOAL := help
-.PHONY: help up down ssh status delete recreate disk delete-data
+.PHONY: help up down ssh status delete recreate disk delete-data setup
 
 help: ## ターゲット一覧を表示
 	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -28,6 +28,9 @@ up: disk ## VM を作成(初回)または起動
 
 down: ## VM を停止
 	limactl stop $(ENV)
+
+setup: ## 起動後のユーザーレベル仕上げ(dotfiles 導入等。冪等・要エージェント転送)
+	ssh lima-$(ENV) 'bash -s' < scripts/setup.sh
 
 ssh: ## VM に接続
 	limactl shell $(ENV)
