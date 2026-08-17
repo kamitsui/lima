@@ -16,44 +16,57 @@ macOS ホスト上に [Lima](https://lima-vm.io/) で開発用 VM を構築・�
   こまめに push する(`make check-dirty` が破棄前の安全網)
 - ブラウザでの動作確認は Lima の自動ポートフォワード(localhost)、内部ドメインは SOCKS プロキシ経由
 
-詳細な設計判断・計画は [Issues](https://github.com/kamitsui/lima/issues) を参照。
+詳細は [docs/design.md](docs/design.md)(設計判断の記録)と
+[docs/troubleshooting.md](docs/troubleshooting.md)(トラブルシュート)、
+経緯は [Issues](https://github.com/kamitsui/lima/issues) を参照。
 
 ## 構成
 
 ```
 .
-├── Makefile          # 環境の構築・起動・停止など(ENV で環境を指定)
-└── envs/
-    └── debian-web/   # Web 開発用 Debian 13 環境
-        └── lima.yaml
+├── Makefile             # VM ライフサイクル操作(ENV で環境を指定)
+├── envs/
+│   └── debian-web/      # Web 開発用 Debian 13 環境
+│       └── lima.yaml    # VM 定義 + provisioning(ゲスト構成はここに集約)
+├── scripts/
+│   ├── setup.sh         # make setup の実体(dotfiles 導入等)
+│   └── check-dirty.sh   # make check-dirty の実体(未 push 検査)
+├── ssh/config           # ssh 接続オプション(~/.ssh/config から Include)
+└── docs/                # 設計判断の記録・トラブルシュート
 ```
 
-## 前提条件
+## 初回構築(ゼロから)
 
-- macOS(Apple Silicon)
-- Homebrew
-- Lima(`brew install lima`)
+前提: macOS(Apple Silicon)、Homebrew、GitHub に SSH 鍵を登録済み。
 
-## 初期設定(初回のみ)
+1. Lima とこのリポジトリを用意する:
+   ```sh
+   brew install lima
+   git clone git@github.com:kamitsui/lima.git && cd lima
+   ```
+2. `~/.ssh/config` の先頭に以下を追加する(パスは clone 先に合わせる):
+   ```
+   Include ~/Documents/42staff/lima/ssh/config
 
-`~/.ssh/config` の先頭に以下を追加する(パスは clone 先に合わせる):
+   # 鍵の使用時に自動で ssh-agent へ登録(ゲストへのエージェント転送で必要)
+   Host *
+   	AddKeysToAgent yes
+   ```
+3. 構築する(初回はイメージ取得 + provisioning で 10 分前後):
+   ```sh
+   make up      # データディスク作成 → VM 作成・起動 → provisioning
+   make setup   # dotfiles 導入・vim プラグイン等(鍵が agent に無ければ先に ssh-add)
+   ```
+4. 接続して開発を始める:
+   ```sh
+   ssh lima-debian-web   # ForwardAgent / DynamicForward 1080 / COLORTERM 伝搬つき
+   ```
 
-```
-Include ~/Documents/42staff/lima/ssh/config
-
-# 鍵の使用時に自動で ssh-agent へ登録(ゲストへのエージェント転送で必要)
-Host *
-	AddKeysToAgent yes
-```
-
-接続設定の実体は本リポジトリの [`ssh/config`](ssh/config) にあり、ポート等は
-Lima 生成の `~/.lima/*/ssh.config` に自動追従する。接続は wezterm 等から:
-
-```sh
-ssh lima-debian-web   # ForwardAgent / DynamicForward 1080 / COLORTERM 伝搬つき
-```
-
-`make ssh`(limactl shell)は管理用の簡易接続。開発時は上記の ssh 接続を常用する。
+- 接続設定の実体は [`ssh/config`](ssh/config) にあり、ポート等は Lima 生成の
+  `~/.lima/*/ssh.config` に自動追従する(再構築してもそのまま繋がる)
+- `make ssh`(limactl shell)は管理用の簡易接続。開発時は `ssh lima-debian-web` を常用する
+- Claude Code を使う場合はゲストで `claude` を実行し、表示された URL をホストの
+  ブラウザで開いて認証コードを貼り付ける(2 回目以降は永続ディスクにより認証不要)
 
 ## データの永続化(何が残り、何が消えるか)
 
@@ -120,15 +133,16 @@ Firefox は専用プロファイルを作って使う(初回のみ):
 ## 使い方
 
 ```sh
-make help     # ターゲット一覧
-make up       # VM を作成(初回)または起動(既定 ENV=debian-web)
-make setup    # ユーザーレベル仕上げ(dotfiles 導入・vim プラグイン等。冪等)
-make ssh      # VM に接続(管理用。開発時は ssh lima-debian-web)
-make down       # 停止
-make status     # 状態表示
+make help        # ターゲット一覧
+make up          # VM を作成(初回)または起動(既定 ENV=debian-web)
+make setup       # ユーザーレベル仕上げ(dotfiles 導入・vim プラグイン等。冪等)
+make ssh         # VM に接続(管理用。開発時は ssh lima-debian-web)
+make down        # 停止
+make status      # 状態表示
 make check-dirty # ゲスト内リポジトリの未 push・未コミット検査
-make delete     # 破棄(dirty 検査 + 確認あり。永続データディスクは残る)
-make recreate   # 破棄して作り直し(dirty 検査 + 確認あり)
+make delete      # 破棄(dirty 検査 + 確認あり。永続データディスクは残る)
+make recreate    # 破棄して作り直し(dirty 検査 + 確認あり)
+make delete-data # 永続データディスクごと完全削除(確認あり)
 ```
 
 ゼロからの構築は `make up && make setup` の 2 コマンドで完了する。
@@ -144,3 +158,10 @@ ghq list                    # 一覧
 ```
 
 別環境を追加した場合は `make up ENV=<環境名>` のように指定する。
+(環境名は 11 文字以内推奨 — データディスク名の制約を参照)
+
+## 困ったら
+
+[docs/troubleshooting.md](docs/troubleshooting.md) に実際に踏んだ問題と対処を
+症状別にまとめてある(接続が遅い・truecolor・SOCKS に繋がらない・
+データディスクが消えた・stow の衝突など)。
