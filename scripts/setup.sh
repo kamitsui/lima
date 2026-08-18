@@ -53,3 +53,15 @@ if [ -f "$HOME/.claude/.credentials.json" ]; then
 else
   echo "claude   : 未ログイン → ゲストで claude を実行して認証してください"
 fi
+LIST=/mnt/lima-web-data/dev/ghq-repos.list
+if [ -f "$LIST" ]; then
+  missing=0
+  while IFS= read -r r; do
+    [ -n "$r" ] && [ ! -d "$(ghq root)/$r/.git" ] && missing=$((missing + 1))
+  done < "$LIST"
+  if [ "$missing" -gt 0 ]; then
+    echo "repos    : 未復元 ${missing} 件 → make restore-repos で一括復元できます"
+  else
+    echo "repos    : 保存済み一覧はすべて復元済み"
+  fi
+fi

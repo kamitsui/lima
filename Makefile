@@ -9,7 +9,7 @@ LIMA_YAML := envs/$(ENV)/lima.yaml
 DATA_DISK ?= web-data
 
 .DEFAULT_GOAL := help
-.PHONY: help up down ssh status delete recreate disk delete-data setup check-dirty _dirty_guard
+.PHONY: help up down ssh status delete recreate disk delete-data setup check-dirty _dirty_guard restore-repos
 
 help: ## ターゲット一覧を表示
 	@grep -E '^[a-z][a-zA-Z_-]*:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -38,8 +38,11 @@ ssh: ## VM に接続
 status: ## VM の状態を表示
 	limactl list
 
-check-dirty: ## ゲスト内リポジトリの未 push・未コミットを検査
+check-dirty: ## ゲスト内リポジトリの未 push・未コミットを検査(+ 一覧を自動保存)
 	@ssh lima-$(ENV) 'bash -s' < scripts/check-dirty.sh
+
+restore-repos: ## 保存された一覧からリポジトリを一括復元(未 clone 分のみ)
+	@ssh lima-$(ENV) 'bash -s' < scripts/restore-repos.sh
 
 # 破棄系ターゲットの前段検査。dirty なら中断(FORCE=1 でスキップ可)
 _dirty_guard:

@@ -14,6 +14,12 @@ fi
 root="$(ghq root)"
 dirty=0
 
+# 再構築後の復元(make restore-repos)用に、現在のリポジトリ一覧を永続ディスクへ保存
+DATA=/mnt/lima-web-data/dev
+if [ -d "$DATA" ]; then
+  ghq list > "$DATA/ghq-repos.list" 2>/dev/null || true
+fi
+
 for repo in $(ghq list 2>/dev/null); do
   dir="$root/$repo"
   [ -d "$dir/.git" ] || continue

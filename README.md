@@ -76,6 +76,8 @@ VM は使い捨て(`make delete` / `make recreate`)が前提。何が残るか�
 - 永続データディスク `web-data` 上のデータ: `~/.claude` と `~/.claude.json`
   (Claude Code のログイン・履歴・メモリ)。対象パスは lima.yaml の
   provisioning 内 dirs / files リストで管理し、必要に応じて追記する
+- **clone していたリポジトリの一覧**(check-dirty / 破棄操作の際に自動保存)。
+  再構築後は `make restore-repos` で未 clone 分だけ一括復元できる
 - push 済みの git リポジトリ(GitHub 側に存在するもの)
 - ホスト側の設定(ssh 設定、Lima のイメージキャッシュ、このリポジトリ)
 
@@ -139,7 +141,8 @@ make setup       # ユーザーレベル仕上げ(dotfiles 導入・vim プラ�
 make ssh         # VM に接続(管理用。開発時は ssh lima-debian-web)
 make down        # 停止
 make status      # 状態表示
-make check-dirty # ゲスト内リポジトリの未 push・未コミット検査
+make check-dirty # ゲスト内リポジトリの未 push・未コミット検査(+ 一覧を自動保存)
+make restore-repos # 保存された一覧からリポジトリを一括復元(未 clone 分のみ)
 make delete      # 破棄(dirty 検査 + 確認あり。永続データディスクは残る)
 make recreate    # 破棄して作り直し(dirty 検査 + 確認あり)
 make delete-data # 永続データディスクごと完全削除(確認あり)
@@ -156,6 +159,9 @@ ghq get -p <owner>/<repo>   # ssh で clone(-p)。配置先は ghq が決める
 ghq list                    # 一覧
 # Ctrl-G                    # fzf でリポジトリを選んで cd(zsh ウィジェット)
 ```
+
+clone 済みの一覧は破棄操作の前に永続ディスクへ自動保存されるため、
+再構築後に `make restore-repos` を実行すれば同じ顔ぶれに戻る。
 
 別環境を追加した場合は `make up ENV=<環境名>` のように指定する。
 (環境名は 11 文字以内推奨 — データディスク名の制約を参照)
